@@ -88,10 +88,17 @@ export default function MapView() {
                 <div style={{ fontWeight: 700 }}>
                     {selectedLocation.id}
                 </div>
-
-                <div className="custom-popup" style={{ marginTop: "6px" }}>
+                {/* <div style={{ marginTop: "6px" }}>
                     {selectedLocation.name}
-                </div>
+                </div> */}
+                <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedLocation.lat},${selectedLocation.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "inline-block", marginTop: "10px" }}
+                >
+                    {selectedLocation.name}
+                </a>
                 </div>
             </InfoWindow>
             )}

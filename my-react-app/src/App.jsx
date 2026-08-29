@@ -2,8 +2,58 @@ import MapView from "./MapView";
 import "./App.css";
 import logo from "./assets/logo.png";
 import payphone from "./assets/payphone.png";
+import bottom from "./assets/bottom.png";
+import top from "./assets/top.png";
+import { useState } from "react";
 
 function App() {
+  const [showMap, setShowMap] = useState(false);
+
+  if (!showMap) {
+    return (
+      <main className="welcome-page">
+        <div className="top-box">
+          <img
+            className="top-logo"
+            src={logo}
+            alt="Pay(phone) it forward"
+          />
+        </div>
+
+        <div className="welcome-content">
+          <img
+            className="top-image"
+            src={top}
+            alt="Pay(phone) it forward"
+          />
+
+
+          <img
+            className="bottom-image"
+            src={bottom}
+            alt="Payphone"
+          />
+
+          <div className="letter-text-box-2">
+            hello
+          </div>
+
+        </div>
+        {/* <p>
+          Listen to messages left at payphones across NSW and leave one for the
+          next person.
+        </p> */}
+
+        <button
+          className="enter-button"
+          onClick={() => setShowMap(true)}
+        >
+          Find a payphone
+        </button>
+      <footer className="footer"><p>© Philip Howard, Samuel Rofail, Olivia Thompson 2026.</p></footer>
+      </main>
+    );
+  }
   return (
     <main className="page">
       <div className="top-box">
