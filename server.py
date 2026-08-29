@@ -6,6 +6,12 @@ from payphone import get_payphone_numbers
 CALL_TIME = 15
 APP_PATH = Path(__file__).parent
 APP_PATH = APP_PATH.resolve()
+LATEST_RECORDINGS_PATH = APP_PATH / "latest_recordings"
+ASSETS_PATH = APP_PATH / "assets"
+TMP_PATH = APP_PATH / "tmp"
+
+def aufile_source(path: Path):
+    return f"aufile,{path}"
 
 def send_command(sock, command, params=None):
 
@@ -42,37 +48,37 @@ def wait_for_call(s: socket.socket):
 def accept_call(s: socket.socket, phone_num: str):
     send_command(s, "accept")
     time.sleep(1)
-    filepath = f"aufile,{APP_PATH}/latest_recordings/{phone_num}.wav"
 
-    file_path = Path(filepath)
-    if not file_path.is_file():
-        filepath = f"aufile,{APP_PATH}/assets/test.wav"
-        prev_call_time = 9
+    previous_recording_path = LATEST_RECORDINGS_PATH / f"{phone_num}.wav"
+    if previous_recording_path.is_file():
+        playback_path = previous_recording_path
     else:
-        prev_call_time = AudioEdit.get_prev_time_for_number(phone_num)
+        playback_path = ASSETS_PATH / "no_message_yet.wav"
 
-    send_command(s, "ausrc", filepath)
-    time.sleep(prev_call_time + CALL_TIME)
+    playback_time = AudioEdit.determine_previous_length(playback_path) / 1000
+
+    send_command(s, "ausrc", aufile_source(playback_path))
+    time.sleep(playback_time + CALL_TIME)
     send_command(s, "hangup")
+    return int(playback_time * 1000)
 
 def decline_call(s):
     send_command(s, "accept")
     time.sleep(1)
     filepath = f"aufile,{APP_PATH}/assets/invalid_caller.wav"
     send_command(s, "ausrc", filepath)
-    INVALID_CALLER_TIME = 4
+    INVALID_CALLER_TIME = 8
     time.sleep(INVALID_CALLER_TIME)
 
     send_command(s, "hangup")
 
-def process_audio(phone_num: str):
-    TMP_RECORDING_PATH = next(Path("./tmp").glob("*dec.wav"))
+def process_audio(phone_num: str, intro_length_ms: int):
+    TMP_RECORDING_PATH = next(TMP_PATH.glob("*dec.wav"))
     audio = AudioEdit(TMP_RECORDING_PATH)
-    audio.run_fix(phone_num)
+    audio.run_fix(phone_num, intro_length_ms)
 
 def purge_temp_files():
-    folder_path = Path("./tmp")
-    for item in folder_path.iterdir():
+    for item in TMP_PATH.iterdir():
         item.unlink()
 
 def server_loop(s: socket.socket):
@@ -84,11 +90,12 @@ def server_loop(s: socket.socket):
 
     if phone_num not in allowed_numbers:
         decline_call(s)
+        return
     
     print(f"Accepting call from {phone_num}")
-    accept_call(s, phone_num)
+    intro_length_ms = accept_call(s, phone_num)
 
-    process_audio(phone_num)
+    process_audio(phone_num, intro_length_ms)
     purge_temp_files()
 
 def main():

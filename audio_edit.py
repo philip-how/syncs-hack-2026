@@ -1,4 +1,9 @@
+from pathlib import Path
+
 from pydub import AudioSegment
+
+APP_PATH = Path(__file__).resolve().parent
+LATEST_RECORDINGS_PATH = APP_PATH / "latest_recordings"
 
 class AudioEdit:
     '''
@@ -13,7 +18,7 @@ class AudioEdit:
     Additional useful function:
     AudioEdit.get_prev_time_for_number(<number>)
     '''
-    BEEP_LOCATION = "assets/phone_beep.wav"
+    BEEP_LOCATION = APP_PATH / "assets" / "phone_beep.wav"
 
     def __init__(self, file_dest):
         self.file_dest = file_dest
@@ -33,7 +38,7 @@ class AudioEdit:
 
     @staticmethod
     def determine_destination(phone_number):
-        return f"latest_recordings/{phone_number}.wav"
+        return LATEST_RECORDINGS_PATH / f"{phone_number}.wav"
 
     @staticmethod
     def determine_previous_length(dest):
@@ -53,12 +58,17 @@ class AudioEdit:
         return AudioEdit.determine_previous_length(dest) / 1000
 
 
-    def run_fix(self, phone_number):
+    def run_fix(self, phone_number, intro_length_ms=None):
         dest = AudioEdit.determine_destination(phone_number)
-        length = AudioEdit.determine_previous_length(dest)
+        length = intro_length_ms
+        if length is None:
+            length = AudioEdit.determine_previous_length(dest)
 
         self.cut_first_section(length)
         self.add_beep()
+        
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
         
         self.save_audio(dest)
 
