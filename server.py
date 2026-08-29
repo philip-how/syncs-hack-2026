@@ -29,21 +29,52 @@ def send_command(sock, command, params=None):
     print("sending:", packet)
     sock.sendall(packet)
 
+def caller_number_from_peeruri(peeruri: str):
+    caller = peeruri.split("@", 1)[0]
+    if caller.startswith("sip:"):
+        caller = caller[4:]
+    if caller.startswith("+"):
+        caller = caller[1:]
+    if caller.startswith("61"):
+        return "0" + caller[2:]
+    return caller
+
 def wait_for_call(s: socket.socket):
     '''
     Waits for caller
     Returns the phone number of the caller
     '''
+    buffer = b""
+
     while True:
-        data = s.recv(4096).decode(errors='ignore')
+        data = s.recv(4096)
+        if not data:
+            raise ConnectionError("Baresip control socket closed")
 
-        json_text = data.split(":", 1)[1][:-1]  # remove "<length>:" and trailing ","
-        obj = json.loads(json_text)
+        buffer += data
 
-        print("received", json_text)
+        while True:
+            separator_index = buffer.find(b":")
+            if separator_index == -1:
+                break
 
-        if "type" in obj and obj["type"] == "CALL_INCOMING":
-            return "0" + obj["peeruri"].split("@")[0][6:]
+            message_length = int(buffer[:separator_index])
+            message_start = separator_index + 1
+            message_end = message_start + message_length
+            packet_end = message_end + 1
+
+            if len(buffer) < packet_end:
+                break
+
+            json_text = buffer[message_start:message_end].decode(errors='ignore')
+            buffer = buffer[packet_end:]
+
+            obj = json.loads(json_text)
+
+            print("received", json_text)
+
+            if "type" in obj and obj["type"] == "CALL_INCOMING":
+                return caller_number_from_peeruri(obj["peeruri"])
 
 def accept_call(s: socket.socket, phone_num: str):
     send_command(s, "accept")
