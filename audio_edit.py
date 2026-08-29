@@ -32,7 +32,7 @@ class AudioEdit:
         self.audio = self.audio + silence + beep
 
     def determine_destination(phone_number):
-        return f"latest_recording/{phone_number}.wav"
+        return f"latest_recordings/{phone_number}.wav"
 
     def determine_previous_length(dest):
         try:
