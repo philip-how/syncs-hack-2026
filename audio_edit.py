@@ -31,9 +31,11 @@ class AudioEdit:
         beep = AudioSegment.from_wav(AudioEdit.BEEP_LOCATION)
         self.audio = self.audio + silence + beep
 
+    @staticmethod
     def determine_destination(phone_number):
-        return f"latest_recording/{phone_number}.wav"
+        return f"latest_recordings/{phone_number}.wav"
 
+    @staticmethod
     def determine_previous_length(dest):
         try:
             prev_audio = AudioSegment.from_wav(dest)
@@ -41,7 +43,8 @@ class AudioEdit:
         except FileNotFoundError:
             return 0
 
-    def get_prev_time_for_number(phone_number):
+    @staticmethod
+    def get_prev_time_for_number(phone_number: str):
         '''
         Return value: length of previous clip for this phone number in seconds.
         Zero if that does not exist
