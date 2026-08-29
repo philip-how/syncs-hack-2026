@@ -1,7 +1,7 @@
 import socket, time, sys, os, json, shutil
 from pathlib import Path
 from audio_edit import AudioEdit
-from payphone1 import get_payphone_numbers
+from payphone import get_payphone_numbers
 
 CALL_TIME = 15
 APP_PATH = Path(__file__).parent
