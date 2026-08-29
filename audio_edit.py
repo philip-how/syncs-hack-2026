@@ -13,7 +13,7 @@ class AudioEdit:
     Additional useful function:
     AudioEdit.get_prev_time_for_number(<number>)
     '''
-    BEEP_LOCATION = "phone_beep.wav"
+    BEEP_LOCATION = "assets/phone_beep.wav"
 
     def __init__(self, file_dest):
         self.file_dest = file_dest

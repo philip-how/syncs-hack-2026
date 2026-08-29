@@ -48,7 +48,7 @@ def check_number(set, number):
         return True
     return False
 
-def get_info():
+def get_payphone_numbers():
     '''
     creating the set of valid payphone numbers
     '''
@@ -56,5 +56,4 @@ def get_info():
     # numbers = df.phone_number.to_list()
     numbers = df.cli.to_list()
 
-    set = set(numbers)
-    return set
+    return set(numbers)

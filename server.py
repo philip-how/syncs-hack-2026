@@ -1,10 +1,11 @@
 import socket, time, sys, os, json, shutil
 from pathlib import Path
 from audio_edit import AudioEdit
+from payphone import get_payphone_numbers
 
 CALL_TIME = 15
-LATEST_RECORDINGS_PATH = Path(__file__).parent / "latest_recordings"
-LATEST_RECORDINGS_PATH = LATEST_RECORDINGS_PATH.resolve()
+APP_PATH = Path(__file__).parent
+APP_PATH = APP_PATH.resolve()
 
 def send_command(sock, command, params=None):
 
@@ -41,13 +42,28 @@ def wait_for_call(s: socket.socket):
 def accept_call(s: socket.socket, phone_num: str):
     send_command(s, "accept")
     time.sleep(1)
-    send_command(s, "ausrc", f"aufile,{LATEST_RECORDINGS_PATH}/{phone_num}.wav")
+    filepath = f"aufile,{APP_PATH}/latest_recordings/{phone_num}.wav"
 
-    prev_call_time = AudioEdit.get_prev_time_for_number(phone_num)
+    file_path = Path(filepath)
+    if not file_path.is_file():
+        filepath = f"aufile,{APP_PATH}/assets/test.wav"
+        prev_call_time = 9
+    else:
+        prev_call_time = AudioEdit.get_prev_time_for_number(phone_num)
+
+    send_command(s, "ausrc", filepath)
     time.sleep(prev_call_time + CALL_TIME)
+    send_command(s, "hangup")
+
+def decline_call(s):
+    send_command(s, "accept")
+    time.sleep(1)
+    filepath = f"aufile,{APP_PATH}/assets/invalid_caller.wav"
+    send_command(s, "ausrc", filepath)
+    INVALID_CALLER_TIME = 4
+    time.sleep(INVALID_CALLER_TIME)
 
     send_command(s, "hangup")
-    s.close()
 
 def process_audio(phone_num: str):
     TMP_RECORDING_PATH = next(Path("./tmp").glob("*dec.wav"))
@@ -59,19 +75,32 @@ def purge_temp_files():
     for item in folder_path.iterdir():
         item.unlink()
 
-def main():
-    s = socket.socket()
-    s.connect(('127.0.0.1', 4444))
-    send_command(s, "reginfo")
-
+def server_loop(s: socket.socket):
     phone_num = wait_for_call(s)
-    # TODO: check number against database
+    payphone_numbers = get_payphone_numbers()
 
+    allowed_numbers = payphone_numbers.union({"0437701777", "0419272511"}) # for debugging
+    print(list(allowed_numbers)[:5])
+
+    if phone_num not in allowed_numbers:
+        decline_call(s)
+    
     print(f"Accepting call from {phone_num}")
     accept_call(s, phone_num)
 
     process_audio(phone_num)
     purge_temp_files()
+
+def main():
+    s = socket.socket()
+    s.connect(('127.0.0.1', 4444))
+    send_command(s, "reginfo")
+
+    try:
+        while True:
+            server_loop(s)
+    except KeyboardInterrupt:  
+        s.close()
 
 if __name__ == "__main__":
     main()
