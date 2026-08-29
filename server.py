@@ -1,61 +1,90 @@
-import socket, time, sys, os, json
+import socket, time, sys, os, json, shutil
 from pathlib import Path
 from audio_edit import AudioEdit
 
-CALL_TIME = 10 #seconds
-CURR_RECORDING_PATH = next(Path("./curr_recording").glob("*.wav"))
+CALL_TIME = 15
+LATEST_RECORDINGS_PATH = Path(__file__).parent / "latest_recordings"
+LATEST_RECORDINGS_PATH = LATEST_RECORDINGS_PATH.resolve()
 
-def send_command(sock, command):
-    obj = json.dumps({"command": command}).encode()
+def send_command(sock, command, params=None):
+
+    obj = {"command": command}
+
+    if params:
+        obj["params"] = params
+
+    data = json.dumps(obj).encode()
 
     # netstring format:
     # <length>:<data>,
-    packet = str(len(obj)).encode() + b":" + obj + b","
+    packet = str(len(data)).encode() + b":" + data + b","
 
     print("sending:", packet)
     sock.sendall(packet)
 
-def wait_for_call(s: socket.socket):
-    '''
-    Waits for caller
-    Returns the phone number of the caller
-    '''
+def wait_for_event(s: socket.socket, event_type: str):
     while True:
-        data = s.recv(4096).decode(errors='ignore')
+        data = s.recv(4096).decode(errors="ignore")
 
-        json_text = data.split(":", 1)[1][:-1]  # remove "<length>:" and trailing ","
+        json_text = data.split(":", 1)[1][:-1]
         obj = json.loads(json_text)
 
-        print("received", json_text)
+        print("received", obj)
 
-        if "type" in obj and obj["type"] == "CALL_INCOMING":
-            print([obj["peeruri"]])
-            return "0" + obj["peeruri"].split("@")[0][6:]
+        if obj.get("type") == event_type:
+            return obj
 
-def accept_call(s: socket.socket):
+# def wait_for_call(s: socket.socket):
+#     '''
+#     Waits for caller
+#     Returns the phone number of the caller
+#     '''
+#     while True:
+#         data = s.recv(4096).decode(errors='ignore')
+
+#         json_text = data.split(":", 1)[1][:-1]  # remove "<length>:" and trailing ","
+#         obj = json.loads(json_text)
+
+#         print("received", json_text)
+
+#         if "type" in obj and obj["type"] == "CALL_INCOMING":
+#             return "0" + obj["peeruri"].split("@")[0][6:]
+
+def accept_call(s: socket.socket, phone_num: str):
     send_command(s, "accept")
+    time.sleep(1)
+    send_command(s, "ausrc", f"aufile,{LATEST_RECORDINGS_PATH}/{phone_num}.wav")
 
-    time.sleep(CALL_TIME)
+    prev_call_time = AudioEdit.get_prev_time_for_number(phone_num)
+    time.sleep(prev_call_time + CALL_TIME)
 
     send_command(s, "hangup")
     s.close()
 
 def process_audio(phone_num: str):
-    audio = AudioEdit(CURR_RECORDING_PATH)
+    TMP_RECORDING_PATH = next(Path("./tmp").glob("*dec.wav"))
+    audio = AudioEdit(TMP_RECORDING_PATH)
     audio.run_fix(phone_num)
+
+def purge_temp_files():
+    folder_path = Path("./tmp")
+    for item in folder_path.iterdir():
+        item.unlink()
 
 def main():
     s = socket.socket()
     s.connect(('127.0.0.1', 4444))
     send_command(s, "reginfo")
 
-    phone_num = wait_for_call(s)
+    obj = wait_for_event(s, "CALL_INCOMING")
+    phone_num = "0" + obj["peeruri"].split("@")[0][6:]
     # TODO: check number against database
 
     print(f"Accepting call from {phone_num}")
-    accept_call(s)
+    accept_call(s, phone_num)
 
     process_audio(phone_num)
+    purge_temp_files()
 
 if __name__ == "__main__":
     main()
