@@ -22,33 +22,21 @@ def send_command(sock, command, params=None):
     print("sending:", packet)
     sock.sendall(packet)
 
-def wait_for_event(s: socket.socket, event_type: str):
+def wait_for_call(s: socket.socket):
+    '''
+    Waits for caller
+    Returns the phone number of the caller
+    '''
     while True:
-        data = s.recv(4096).decode(errors="ignore")
+        data = s.recv(4096).decode(errors='ignore')
 
-        json_text = data.split(":", 1)[1][:-1]
+        json_text = data.split(":", 1)[1][:-1]  # remove "<length>:" and trailing ","
         obj = json.loads(json_text)
 
-        print("received", obj)
+        print("received", json_text)
 
-        if obj.get("type") == event_type:
-            return obj
-
-# def wait_for_call(s: socket.socket):
-#     '''
-#     Waits for caller
-#     Returns the phone number of the caller
-#     '''
-#     while True:
-#         data = s.recv(4096).decode(errors='ignore')
-
-#         json_text = data.split(":", 1)[1][:-1]  # remove "<length>:" and trailing ","
-#         obj = json.loads(json_text)
-
-#         print("received", json_text)
-
-#         if "type" in obj and obj["type"] == "CALL_INCOMING":
-#             return "0" + obj["peeruri"].split("@")[0][6:]
+        if "type" in obj and obj["type"] == "CALL_INCOMING":
+            return "0" + obj["peeruri"].split("@")[0][6:]
 
 def accept_call(s: socket.socket, phone_num: str):
     send_command(s, "accept")
@@ -76,8 +64,7 @@ def main():
     s.connect(('127.0.0.1', 4444))
     send_command(s, "reginfo")
 
-    obj = wait_for_event(s, "CALL_INCOMING")
-    phone_num = "0" + obj["peeruri"].split("@")[0][6:]
+    phone_num = wait_for_call(s)
     # TODO: check number against database
 
     print(f"Accepting call from {phone_num}")
