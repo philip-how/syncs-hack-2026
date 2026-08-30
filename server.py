@@ -3,7 +3,7 @@ from pathlib import Path
 from audio_edit import AudioEdit
 from payphone import get_payphone_numbers
 
-CALL_TIME = 15
+CALL_TIME = 10
 APP_PATH = Path(__file__).parent
 APP_PATH = APP_PATH.resolve()
 LATEST_RECORDINGS_PATH = APP_PATH / "latest_recordings"
@@ -39,6 +39,23 @@ def caller_number_from_peeruri(peeruri: str):
         return "0" + caller[2:]
     return caller
 
+def wait_for_end(s: socket.socket, t: int):
+    '''
+    Waits for caller
+    Returns the phone number of the caller
+    '''
+    timestamp = time.time()
+    while time.time() <= timestamp + t:
+        data = s.recv(4096).decode(errors='ignore')
+
+        json_text = data.split(":", 1)[1][:-1]  # remove "<length>:" and trailing ","
+        obj = json.loads(json_text)
+
+        print("received:", json_text)
+
+        if "type" in obj and obj["type"] == "CALL_CLOSED":
+            return
+
 def wait_for_call(s: socket.socket):
     '''
     Waits for caller
@@ -71,7 +88,7 @@ def wait_for_call(s: socket.socket):
 
             obj = json.loads(json_text)
 
-            print("received", json_text)
+            print("received:", json_text)
 
             if "type" in obj and obj["type"] == "CALL_INCOMING":
                 return caller_number_from_peeruri(obj["peeruri"])
@@ -86,10 +103,10 @@ def accept_call(s: socket.socket, phone_num: str):
     else:
         playback_path = ASSETS_PATH / "no_message_yet.wav"
 
-    playback_time = AudioEdit.determine_previous_length(playback_path) / 1000
+    playback_time = int(AudioEdit.determine_previous_length(playback_path) / 1000)
 
     send_command(s, "ausrc", aufile_source(playback_path))
-    time.sleep(playback_time + CALL_TIME)
+    wait_for_end(s, playback_time + CALL_TIME)
     send_command(s, "hangup")
     return int(playback_time * 1000)
 
@@ -99,7 +116,7 @@ def decline_call(s):
     filepath = f"aufile,{APP_PATH}/assets/invalid_caller.wav"
     send_command(s, "ausrc", filepath)
     INVALID_CALLER_TIME = 8
-    time.sleep(INVALID_CALLER_TIME)
+    wait_for_end(s, INVALID_CALLER_TIME)
 
     send_command(s, "hangup")
 
