@@ -3,7 +3,7 @@ from pathlib import Path
 from audio_edit import AudioEdit
 from payphone import get_payphone_numbers
 
-CALL_TIME = 15
+CALL_TIME = 60
 APP_PATH = Path(__file__).parent
 APP_PATH = APP_PATH.resolve()
 LATEST_RECORDINGS_PATH = APP_PATH / "latest_recordings"
@@ -39,6 +39,57 @@ def caller_number_from_peeruri(peeruri: str):
         return "0" + caller[2:]
     return caller
 
+def wait_for_end(s: socket.socket, t: int):
+    '''
+    Waits for caller
+    Returns the phone number of the caller
+    '''
+    deadline = time.time() + t
+    buffer = b""
+    original_timeout = s.gettimeout()
+
+    try:
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                return
+
+            s.settimeout(remaining)
+            try:
+                data = s.recv(4096)
+            except TimeoutError:
+                return
+
+            if not data:
+                raise ConnectionError("Baresip control socket closed")
+
+            buffer += data
+
+            while True:
+                separator_index = buffer.find(b":")
+                if separator_index == -1:
+                    break
+
+                message_length = int(buffer[:separator_index])
+                message_start = separator_index + 1
+                message_end = message_start + message_length
+                packet_end = message_end + 1
+
+                if len(buffer) < packet_end:
+                    break
+
+                json_text = buffer[message_start:message_end].decode(errors='ignore')
+                buffer = buffer[packet_end:]
+
+                obj = json.loads(json_text)
+
+                print("received:", json_text)
+
+                if "type" in obj and obj["type"] == "CALL_CLOSED":
+                    return
+    finally:
+        s.settimeout(original_timeout)
+
 def wait_for_call(s: socket.socket):
     '''
     Waits for caller
@@ -71,7 +122,7 @@ def wait_for_call(s: socket.socket):
 
             obj = json.loads(json_text)
 
-            print("received", json_text)
+            print("received:", json_text)
 
             if "type" in obj and obj["type"] == "CALL_INCOMING":
                 return caller_number_from_peeruri(obj["peeruri"])
@@ -86,10 +137,10 @@ def accept_call(s: socket.socket, phone_num: str):
     else:
         playback_path = ASSETS_PATH / "no_message_yet.wav"
 
-    playback_time = AudioEdit.determine_previous_length(playback_path) / 1000
+    playback_time = int(AudioEdit.determine_previous_length(playback_path) / 1000)
 
     send_command(s, "ausrc", aufile_source(playback_path))
-    time.sleep(playback_time + CALL_TIME)
+    wait_for_end(s, playback_time + CALL_TIME)
     send_command(s, "hangup")
     return int(playback_time * 1000)
 
@@ -99,7 +150,7 @@ def decline_call(s):
     filepath = f"aufile,{APP_PATH}/assets/invalid_caller.wav"
     send_command(s, "ausrc", filepath)
     INVALID_CALLER_TIME = 8
-    time.sleep(INVALID_CALLER_TIME)
+    wait_for_end(s, INVALID_CALLER_TIME)
 
     send_command(s, "hangup")
 
